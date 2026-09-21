@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useFetch } from './hooks/useFetch';
 import { useDebounce } from './hooks/useDebounce';
 import PokemonCard from './components/PokemonCard';
@@ -9,7 +9,32 @@ export default function App() {
   const [token, setToken] = useState(localStorage.getItem('token'));
   const [offset, setOffset] = useState(0);
   const [searchTerm, setSearchTerm] = useState('');
+  const [favoriteIds, setFavoriteIds] = useState(() =>
+    JSON.parse(localStorage.getItem('favs') || '[]'),
+  );
+  const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
   const debouncedSearch = useDebounce(searchTerm, 500);
+
+  useEffect(() => {
+    if (!token) return;
+
+    fetch(`${apiUrl}/api/favoritos`, {
+      headers: { Authorization: `Bearer ${token}` },
+    })
+      .then((response) => {
+        if (!response.ok) throw new Error('No se pudieron cargar los favoritos');
+        return response.json();
+      })
+      .then(({ favorites }) => {
+        const ids = favorites.map(({ pokemon_id }) => pokemon_id);
+        setFavoriteIds(ids);
+        localStorage.setItem(
+          'favs',
+          JSON.stringify(ids),
+        );
+      })
+      .catch((error) => console.error(error));
+  }, [apiUrl, token]);
 
   const endpoint = debouncedSearch 
     ? `https://pokeapi.co/api/v2/pokemon/${debouncedSearch.toLowerCase()}`
@@ -48,12 +73,23 @@ export default function App() {
 
       <main className="grid-container">
         {data && debouncedSearch && !error && (
-          <PokemonCard url={`https://pokeapi.co/api/v2/pokemon/${data.id}`} token={token} />
+          <PokemonCard
+            url={`https://pokeapi.co/api/v2/pokemon/${data.id}`}
+            token={token}
+            favoriteIds={favoriteIds}
+            onFavoriteChange={setFavoriteIds}
+          />
         )}
         
         {data && data.results && !debouncedSearch && (
           data.results.map(poke => (
-            <PokemonCard key={poke.name} url={poke.url} token={token} />
+            <PokemonCard
+              key={poke.name}
+              url={poke.url}
+              token={token}
+              favoriteIds={favoriteIds}
+              onFavoriteChange={setFavoriteIds}
+            />
           ))
         )}
       </main>

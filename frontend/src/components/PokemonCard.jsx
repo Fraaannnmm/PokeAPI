@@ -1,9 +1,9 @@
 import { useState, useEffect } from 'react';
 
-export default function PokemonCard({ url }) {
+export default function PokemonCard({ url, token, favoriteIds, onFavoriteChange }) {
 const [pokemon, setPokemon] = useState(null);
 const [isShiny, setIsShiny] = useState(false);
-const [isFav, setIsFav] = useState(false);
+const isFav = pokemon ? favoriteIds.includes(pokemon.id) : false;
 
 useEffect(() => {
     const fetchDetail = async () => {
@@ -13,8 +13,6 @@ useEffect(() => {
         const data = await res.json();
         setPokemon(data);
         
-        const favs = JSON.parse(localStorage.getItem('favs') || '[]');
-        if (favs.includes(data.id)) setIsFav(true);
     } catch (error) {
         console.error(error);
     }
@@ -23,18 +21,27 @@ useEffect(() => {
 }, [url]);
 
 const toggleFav = async () => {
-    const favs = JSON.parse(localStorage.getItem('favs') || '[]');
+    const apiUrl = import.meta.env.VITE_API_URL || 'http://localhost:8000';
+    const nextFavs = isFav
+        ? favoriteIds.filter(id => id !== pokemon.id)
+        : [...favoriteIds, pokemon.id];
+    onFavoriteChange(nextFavs);
+    localStorage.setItem('favs', JSON.stringify(nextFavs));
     if (isFav) {
-        localStorage.setItem('favs', JSON.stringify(favs.filter(id => id !== pokemon.id)));
+        await fetch(`${apiUrl}/api/favoritos/${pokemon.id}`, {
+            method: 'DELETE',
+            headers: { Authorization: `Bearer ${token}` },
+        });
     } else {
-        localStorage.setItem('favs', JSON.stringify([...favs, pokemon.id]));
-        await fetch('http://localhost:8000/api/favoritos', {
+        await fetch(`${apiUrl}/api/favoritos`, {
             method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
+            headers: {
+                'Content-Type': 'application/json',
+                Authorization: `Bearer ${token}`,
+            },
             body: JSON.stringify({ pokemon_id: pokemon.id, name: pokemon.name })
         });
     }
-    setIsFav(!isFav);
 };
 
 if (!pokemon) return <div className="loading-card">Cargando...</div>;
